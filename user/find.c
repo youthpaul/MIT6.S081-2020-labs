@@ -35,8 +35,7 @@ void find(char* path, char* name){
     struct stat st;
     struct dirent de;
     int fd;
-    char buf[512];
-    
+   
     if((fd = open(path, 0)) < 0){
         fprintf(2, "find cannot open %s\n", path);
         return;
@@ -48,7 +47,11 @@ void find(char* path, char* name){
         return;
     }
 
+    char* fileName = fmtname(path);
+    if(strEqual(fileName, name)) printf("%s\n", path); //the fileName of the current path
+
     if(st.type == T_DIR){ //directory
+        char buf[512];
         if(strlen(path) + 1 + DIRSIZ + 1 > sizeof buf){
             printf("ls: path too long\n");
             return;
@@ -68,18 +71,9 @@ void find(char* path, char* name){
             }
 
             char* fileName = fmtname(buf);
-            if(strEqual(fileName, ".") || strEqual(fileName, "..")) continue; //
-            if(st.type == T_DIR){ //recursive search
-                find(buf, name);
-            }
-            else{
-                if(strEqual(fileName, name)) printf("%s\n", buf);
-            }
+            if(strEqual(fileName, ".") || strEqual(fileName, "..")) continue; //skip
+            find(buf, name);//recursive search
         }
-    }
-    else{ //file or divice
-        char* fileName = fmtname(buf);
-        if(strEqual(fileName, name)) printf("%s\n", buf);
     }
 
     close(fd);
