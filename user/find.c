@@ -20,16 +20,6 @@ char* fmtname(char *path){
     return buf;
 }
 
-int strEqual(char* p, char* q){
-    if(strlen(p) != strlen(q)) return 0;
-    while(*p && *p == *q){
-        ++p;
-        ++q;
-    }
-    if(*p) return 0;
-    return 1;
-}
-
 //find the file which name is 'name' in the current path
 void find(char* path, char* name){ 
     struct stat st;
@@ -48,7 +38,7 @@ void find(char* path, char* name){
     }
 
     char* fileName = fmtname(path);
-    if(strEqual(fileName, name)) printf("%s\n", path); //the fileName of the current path
+    if(strcmp(fileName, name) == 0) printf("%s\n", path); //the fileName of the current path
 
     if(st.type == T_DIR){ //directory
         char buf[512];
@@ -71,7 +61,7 @@ void find(char* path, char* name){
             }
 
             char* fileName = fmtname(buf);
-            if(strEqual(fileName, ".") || strEqual(fileName, "..")) continue; //skip
+            if(strcmp(fileName, ".") == 0|| strcmp(fileName, "..") == 0) continue; //skip
             find(buf, name);//recursive search
         }
     }
