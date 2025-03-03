@@ -15,8 +15,21 @@ int main(int argc, char* argv[]){
     char* l = input;
     while(*l){
         char* r = l;
-        while(*r && *r != '\n') ++r; //get each input line, which is input[l : r)
-        *r = 0;
+        while(*r){ //get each input line, which is input[l : r)
+            if(*r == '\\'){
+                ++r;
+                if(*r && *r == 'n'){
+                    *--r = 0;
+                    *++r = 0;
+                    break;
+                }
+            }
+            else if(*r == '\n'){
+                *r = 0;
+                break;
+            }
+            ++r; 
+        }
 
         int pid = fork();
         if(pid == 0){
