@@ -95,3 +95,15 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// get arguments from user mode through register
+// and set tracemask of this process
+// retrurn 0 if succeed, -1 otherwise
+uint64
+sys_trace(void){
+	int mask = 0;
+	if(argint(0, &mask) < 0)
+		return -1;
+	myproc() -> tracemask = mask;
+	return 0;
+}
