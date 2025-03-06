@@ -699,3 +699,15 @@ procdump(void)
     printf("\n");
   }
 }
+
+
+uint64
+count_used_proc(){
+  uint64 cnt = 0;
+  for(struct proc* p = proc; p < &proc[NPROC]; ++p){
+    //maybe need a lock ? 
+    cnt += (p -> state != UNUSED);
+  }
+
+  return cnt;
+}

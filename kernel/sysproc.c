@@ -6,6 +6,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "sysinfo.h"
 
 uint64
 sys_exit(void)
@@ -106,4 +107,27 @@ sys_trace(void){
 		return -1;
 	myproc() -> tracemask = mask;
 	return 0;
+}
+
+extern uint64 kfreecnt(void);
+extern uint64 count_used_proc(void);
+
+// collect system information
+// and send it to user space
+// return 0 if succeed, -1 otherwise
+uint64
+sys_sysinfo(void){
+  uint64 ptr;
+  if(argaddr(0, &ptr) < 0) // get the address from user
+    return -1;
+
+  struct sysinfo info;
+  info.freemem = kfreecnt();
+  info.nproc = count_used_proc();
+
+  struct proc* p = myproc();
+  if(copyout(p -> pagetable, ptr, (char*)&info, sizeof(info)))
+    return -1;
+
+  return 0;
 }

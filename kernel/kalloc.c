@@ -80,3 +80,19 @@ kalloc(void)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
 }
+
+// return the number of free memory
+uint64
+kfreecnt(void){
+  struct run* r;
+  uint64 cnt = 0;
+
+  // maybe need a lock ? 
+  r = kmem.freelist;
+  while(r){ //traverse the link list
+    cnt += PGSIZE; 
+    r = r -> next;
+  }
+
+  return cnt;
+}
