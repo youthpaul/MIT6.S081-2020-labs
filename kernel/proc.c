@@ -127,8 +127,28 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  // creat a user kernle page table
+  p -> kpagetable = ukvminit();
+  if(p -> kpagetable == 0){ // alloc failed
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+
+  // remap each process's kernel stack to its own kernel address space 
+  // instead of the original global kernel address space
+  // but since the physical address uses the physical page
+  // that the kernel stack originally pointed to, it cannot 
+  // be freed
+  uint64 va = KSTACK((int)(p - proc));
+  uint64 pa = kvmpa(va);
+  mappages(p -> kpagetable, va, PGSIZE, pa, PTE_R | PTE_W);
+  p -> kstack = va;
+
   return p;
 }
+
+extern char etext[];
 
 // free a proc structure and the data hanging from it,
 // including user pages.
@@ -142,6 +162,21 @@ freeproc(struct proc *p)
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
+  if(p -> kpagetable){
+    /* unmapping */
+    uvmunmap(p -> kpagetable, p -> kstack, 1, 0);
+    uvmunmap(p -> kpagetable, UART0, 1, 0);
+    uvmunmap(p -> kpagetable, VIRTIO0, 1, 0);
+    uvmunmap(p -> kpagetable, CLINT, 0x10000 / PGSIZE, 0);
+    uvmunmap(p -> kpagetable, PLIC, 0x400000 / PGSIZE, 0);
+    uvmunmap(p -> kpagetable, KERNBASE, ((uint64)etext - KERNBASE) / PGSIZE, 0);
+    uvmunmap(p -> kpagetable, (uint64)etext, (PHYSTOP - (uint64)etext) / PGSIZE, 0);
+    uvmunmap(p -> kpagetable, TRAMPOLINE, 1, 0);
+    /* free process kernel page table */
+    freewalk(p -> kpagetable);
+  }
+  p -> kpagetable = 0;
+  p -> kstack = 0;
   p->sz = 0;
   p->pid = 0;
   p->parent = 0;
@@ -473,11 +508,18 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+        //load the process's kernel page table to satp register
+        w_satp(MAKE_SATP(p -> kpagetable)); 
+        sfence_vma();
+
         swtch(&c->context, &p->context);
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
+
+        // switch back to use the kernel page table
+        kvminithart();
 
         found = 1;
       }

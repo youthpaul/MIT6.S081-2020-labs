@@ -348,6 +348,39 @@ uvmclear(pagetable_t pagetable, uint64 va)
   *pte &= ~PTE_U;
 }
 
+// return a user kernel page table for each process
+// return null when alloc fails
+pagetable_t ukvminit(){
+  pagetable_t kpagetable = (pagetable_t) kalloc();
+  if(kpagetable == 0) return 0;
+
+  memset(kpagetable, 0, PGSIZE);
+
+  // uart registers
+  mappages(kpagetable, UART0, PGSIZE, UART0, PTE_R | PTE_W);
+
+  // virtio mmio disk interface
+  mappages(kpagetable, VIRTIO0, PGSIZE, VIRTIO0, PTE_R | PTE_W);
+
+  // CLINT
+  mappages(kpagetable, CLINT, 0x10000, CLINT, PTE_R | PTE_W);
+
+  // PLIC
+  mappages(kpagetable, PLIC, 0x400000, PLIC, PTE_R | PTE_W);
+
+  // map kernel text executable and read-only.
+  mappages(kpagetable, KERNBASE, (uint64)etext-KERNBASE, KERNBASE, PTE_R | PTE_X);
+
+  // map kernel data and the physical RAM we'll make use of.
+  mappages(kpagetable, (uint64)etext, PHYSTOP-(uint64)etext, (uint64)etext, PTE_R | PTE_W);
+
+  // map the trampoline for trap entry/exit to
+  // the highest virtual address in the kernel.
+  mappages(kpagetable, TRAMPOLINE, PGSIZE, (uint64)trampoline, PTE_R | PTE_X);
+
+  return kpagetable;
+}
+
 // print the PTEs in the given pagetable
 void vmprint(pagetable_t pagetable, int level){
   printf("page table %p\n", pagetable);
