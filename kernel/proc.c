@@ -167,11 +167,12 @@ freeproc(struct proc *p)
     uvmunmap(p -> kpagetable, p -> kstack, 1, 0);
     uvmunmap(p -> kpagetable, UART0, 1, 0);
     uvmunmap(p -> kpagetable, VIRTIO0, 1, 0);
-    uvmunmap(p -> kpagetable, CLINT, 0x10000 / PGSIZE, 0);
+    // uvmunmap(p -> kpagetable, CLINT, 0x10000 / PGSIZE, 0);
     uvmunmap(p -> kpagetable, PLIC, 0x400000 / PGSIZE, 0);
     uvmunmap(p -> kpagetable, KERNBASE, ((uint64)etext - KERNBASE) / PGSIZE, 0);
     uvmunmap(p -> kpagetable, (uint64)etext, (PHYSTOP - (uint64)etext) / PGSIZE, 0);
     uvmunmap(p -> kpagetable, TRAMPOLINE, 1, 0);
+    uvmunmap(p -> kpagetable, 0, PGROUNDUP(p -> sz) / PGSIZE, 0); // unmap the user vm
     /* free process kernel page table */
     freewalk(p -> kpagetable);
   }
@@ -256,6 +257,10 @@ userinit(void)
   uvminit(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
 
+  /* add mapping of initcode to kernel page table*/
+  copypagetable(p -> pagetable, p -> kpagetable, 0, p -> sz);
+
+
   // prepare for the very first "return" from kernel to user.
   p->trapframe->epc = 0;      // user program counter
   p->trapframe->sp = PGSIZE;  // user stack pointer
@@ -268,6 +273,20 @@ userinit(void)
   release(&p->lock);
 }
 
+// copy the mappings among [begin, end) from 'old' to 'new'
+// return 0 if succeed, 0 otherwise
+int copypagetable(pagetable_t old, pagetable_t new, uint64 begin, uint64 end){
+  for(int pg = begin; pg < end; pg += PGSIZE){
+    pte_t* pte = walk(old, pg, 0);
+    pte_t* kpte = walk(new, pg, 1);
+    if(kpte == 0) return -1; //failed
+    *kpte = (*pte & ~PTE_U); // copy, the ptes in kernel page table 
+                            // can only read in supervisor mode
+  }
+  return 0;
+}
+
+
 // Grow or shrink user memory by n bytes.
 // Return 0 on success, -1 on failure.
 int
@@ -276,13 +295,16 @@ growproc(int n)
   uint sz;
   struct proc *p = myproc();
 
+  int oldsz = p -> sz;
   sz = p->sz;
   if(n > 0){
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
       return -1;
     }
+    copypagetable(p -> pagetable, p -> kpagetable, oldsz, sz); // add new mappings
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
+    uvmunmap(p -> kpagetable, sz, (PGROUNDUP(oldsz) - PGROUNDUP(sz)) / PGSIZE, 0); // delete old mappings
   }
   p->sz = sz;
   return 0;
@@ -308,6 +330,9 @@ fork(void)
     release(&np->lock);
     return -1;
   }
+  /* add the virtual address mapping to its kernel page table */
+  copypagetable(p -> pagetable, np -> kpagetable, 0, p -> sz);
+
   np->sz = p->sz;
 
   np->parent = p;

@@ -363,7 +363,7 @@ pagetable_t ukvminit(){
   mappages(kpagetable, VIRTIO0, PGSIZE, VIRTIO0, PTE_R | PTE_W);
 
   // CLINT
-  mappages(kpagetable, CLINT, 0x10000, CLINT, PTE_R | PTE_W);
+  // mappages(kpagetable, CLINT, 0x10000, CLINT, PTE_R | PTE_W);
 
   // PLIC
   mappages(kpagetable, PLIC, 0x400000, PLIC, PTE_R | PTE_W);
@@ -394,6 +394,7 @@ void vmprint(pagetable_t pagetable, int level){
 
     uint64 child = PTE2PA(pte);
     if((pte & (PTE_R | PTE_W | PTE_X)) == 0) vmprint((pagetable_t)child, level + 1); //recursive pinting
+    // if(level < 2) vmprint((pagetable_t)child, level + 1); //recursive pinting
   }
 }
 
@@ -428,6 +429,9 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
+
+  return copyin_new(pagetable, dst, srcva, len);
+
   uint64 n, va0, pa0;
 
   while(len > 0){
@@ -454,6 +458,9 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 int
 copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 {
+
+  return copyinstr_new(pagetable, dst, srcva, max);
+
   uint64 n, va0, pa0;
   int got_null = 0;
 

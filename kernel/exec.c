@@ -51,6 +51,9 @@ exec(char *path, char **argv)
     uint64 sz1;
     if((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz)) == 0)
       goto bad;
+    if(sz1 >= PLIC){ // user address cannot exceed the PLIC
+      goto bad;     // due to the mappings in kernel page table 
+    }
     sz = sz1;
     if(ph.vaddr % PGSIZE != 0)
       goto bad;
@@ -97,6 +100,10 @@ exec(char *path, char **argv)
   if(copyout(pagetable, sp, (char *)ustack, (argc+1)*sizeof(uint64)) < 0)
     goto bad;
 
+  
+  /* unmapping the old kernel page table mappings */
+  uvmunmap(p -> kpagetable, 0, PGROUNDUP(oldsz) / PGSIZE, 0);
+
   // arguments to user main(argc, argv)
   // argc is returned via the system call return
   // value, which goes in a0.
@@ -115,6 +122,9 @@ exec(char *path, char **argv)
   p->trapframe->epc = elf.entry;  // initial program counter = main
   p->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
+
+  /* add the virtual address mapping to its kernel page table */
+  copypagetable(p -> pagetable, p -> kpagetable, 0, p -> sz);
 
   if(p -> pid == 1) vmprint(p -> pagetable, 0);
 
