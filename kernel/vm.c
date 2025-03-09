@@ -348,6 +348,22 @@ uvmclear(pagetable_t pagetable, uint64 va)
   *pte &= ~PTE_U;
 }
 
+// print the PTEs in the given pagetable
+void vmprint(pagetable_t pagetable, int level){
+  printf("page table %p\n", pagetable);
+
+  // there are 2^9 = 512 PTEs in a page table.
+  for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if((pte & PTE_V) == 0) continue;
+    for(int j = 0; j <= level; ++j) printf(" ..");
+    printf("%d: pte %p pa %p\n", i, pte, PTE2PA(pte));
+
+    uint64 child = PTE2PA(pte);
+    if((pte & (PTE_R | PTE_W | PTE_X)) == 0) vmprint((pagetable_t)child, level + 1); //recursive pinting
+  }
+}
+
 // Copy from kernel to user.
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
