@@ -549,7 +549,7 @@ scheduler(void)
         swtch(&c->context, &p->context);
 
         // switch back to use the kernel page table
-        // kvminithart();
+        kvminithart();
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
