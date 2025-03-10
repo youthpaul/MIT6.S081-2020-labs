@@ -142,6 +142,7 @@ found:
   // be freed
   uint64 va = KSTACK((int)(p - proc));
   uint64 pa = kvmpa(va);
+  memset((void*)pa, 0, PGSIZE);
   if(mappages(p -> kpagetable, va, PGSIZE, pa, PTE_R | PTE_W) < 0)
     panic("ukpgtbl kstack mappages faild");
   p -> kstack = va;
@@ -332,7 +333,7 @@ fork(void)
     return -1;
   }
   /* add the virtual address mapping to its kernel page table */
-  copypagetable(p -> pagetable, np -> kpagetable, 0, p -> sz);
+  copypagetable(np -> pagetable, np -> kpagetable, 0, p -> sz);
 
   np->sz = p->sz;
 
