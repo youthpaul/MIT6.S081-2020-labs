@@ -34,12 +34,12 @@ procinit(void)
       // Allocate a page for the process's kernel stack.
       // Map it high in memory, followed by an invalid
       // guard page.
-      char *pa = kalloc();
-      if(pa == 0)
-        panic("kalloc");
-      uint64 va = KSTACK((int) (p - proc));
-      kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
-      p->kstack = va;
+      // char *pa = kalloc();
+      // if(pa == 0)
+      //   panic("kalloc");
+      // uint64 va = KSTACK((int) (p - proc));
+      // kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+      // p->kstack = va;
   }
   kvminithart();
 }
@@ -121,12 +121,6 @@ found:
     return 0;
   }
 
-  // Set up new context to start executing at forkret,
-  // which returns to user space.
-  memset(&p->context, 0, sizeof(p->context));
-  p->context.ra = (uint64)forkret;
-  p->context.sp = p->kstack + PGSIZE;
-
   // creat a user kernle page table
   p -> kpagetable = ukvminit();
   if(p -> kpagetable == 0){ // alloc failed
@@ -141,11 +135,19 @@ found:
   // that the kernel stack originally pointed to, it cannot 
   // be freed
   uint64 va = KSTACK((int)(p - proc));
-  uint64 pa = kvmpa(va);
+  char* pa = kalloc();
+  if(pa == 0)
+    panic("kalloc");
   memset((void*)pa, 0, PGSIZE);
-  if(mappages(p -> kpagetable, va, PGSIZE, pa, PTE_R | PTE_W) < 0)
+  if(mappages(p -> kpagetable, va, PGSIZE, (uint64)pa, PTE_R | PTE_W) < 0)
     panic("ukpgtbl kstack mappages faild");
   p -> kstack = va;
+
+  // Set up new context to start executing at forkret,
+  // which returns to user space.
+  memset(&p->context, 0, sizeof(p->context));
+  p->context.ra = (uint64)forkret;
+  p->context.sp = p->kstack + PGSIZE;
 
   return p;
 }
@@ -166,7 +168,7 @@ freeproc(struct proc *p)
   p->pagetable = 0;
   if(p -> kpagetable){
     /* unmapping */
-    uvmunmap(p -> kpagetable, p -> kstack, 1, 0);
+    uvmunmap(p -> kpagetable, p -> kstack, 1, 1);
     uvmunmap(p -> kpagetable, UART0, 1, 0);
     uvmunmap(p -> kpagetable, VIRTIO0, 1, 0);
     // uvmunmap(p -> kpagetable, CLINT, 0x10000 / PGSIZE, 0);
@@ -278,10 +280,13 @@ userinit(void)
 // copy the mappings among [begin, end) from 'old' to 'new'
 // return 0 if succeed, 0 otherwise
 int copypagetable(pagetable_t old, pagetable_t new, uint64 begin, uint64 end){
-  for(int pg = begin; pg < end; pg += PGSIZE){
+  for(uint64 pg = begin; pg < end; pg += PGSIZE){
     pte_t* pte = walk(old, pg, 0);
     pte_t* kpte = walk(new, pg, 1);
-    if(kpte == 0) return -1; //failed
+    if(kpte == 0 || pte == 0){
+      panic("copy pagetable");
+      return -1; //failed
+    }
     *kpte = (*pte & ~PTE_U); // copy, the ptes in kernel page table 
                             // can only read in supervisor mode
   }
@@ -300,10 +305,11 @@ growproc(int n)
   int oldsz = p -> sz;
   sz = p->sz;
   if(n > 0){
+    if(PGROUNDUP(sz + n) >= PLIC) return -1;
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
       return -1;
     }
-    copypagetable(p -> pagetable, p -> kpagetable, oldsz, sz); // add new mappings
+    copypagetable(p -> pagetable, p -> kpagetable, sz - n, sz); // add new mappings
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
     uvmunmap(p -> kpagetable, PGROUNDUP(sz), (PGROUNDUP(oldsz) - PGROUNDUP(sz)) / PGSIZE, 0); // delete old mappings
@@ -332,8 +338,6 @@ fork(void)
     release(&np->lock);
     return -1;
   }
-  /* add the virtual address mapping to its kernel page table */
-  copypagetable(np -> pagetable, np -> kpagetable, 0, p -> sz);
 
   np->sz = p->sz;
 
@@ -350,6 +354,9 @@ fork(void)
     if(p->ofile[i])
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
+
+  /* add the virtual address mapping to its kernel page table */
+  copypagetable(np -> pagetable, np -> kpagetable, 0, p -> sz);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 
@@ -542,7 +549,7 @@ scheduler(void)
         swtch(&c->context, &p->context);
 
         // switch back to use the kernel page table
-        kvminithart();
+        // kvminithart();
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
@@ -556,6 +563,7 @@ scheduler(void)
 #if !defined (LAB_FS)
     if(found == 0) {
       intr_on();
+      kvminithart();
       asm volatile("wfi");
     }
 #else
