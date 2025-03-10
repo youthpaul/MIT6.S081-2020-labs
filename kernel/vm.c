@@ -383,7 +383,8 @@ pagetable_t ukvminit(){
 
 // print the PTEs in the given pagetable
 void vmprint(pagetable_t pagetable, int level){
-  printf("page table %p\n", pagetable);
+  if(level == 0)
+    printf("page table %p\n", pagetable);
 
   // there are 2^9 = 512 PTEs in a page table.
   for(int i = 0; i < 512; i++){

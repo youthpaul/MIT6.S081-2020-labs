@@ -142,7 +142,8 @@ found:
   // be freed
   uint64 va = KSTACK((int)(p - proc));
   uint64 pa = kvmpa(va);
-  mappages(p -> kpagetable, va, PGSIZE, pa, PTE_R | PTE_W);
+  if(mappages(p -> kpagetable, va, PGSIZE, pa, PTE_R | PTE_W) < 0)
+    panic("ukpgtbl kstack mappages faild");
   p -> kstack = va;
 
   return p;
@@ -304,7 +305,7 @@ growproc(int n)
     copypagetable(p -> pagetable, p -> kpagetable, oldsz, sz); // add new mappings
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
-    uvmunmap(p -> kpagetable, sz, (PGROUNDUP(oldsz) - PGROUNDUP(sz)) / PGSIZE, 0); // delete old mappings
+    uvmunmap(p -> kpagetable, PGROUNDUP(sz), (PGROUNDUP(oldsz) - PGROUNDUP(sz)) / PGSIZE, 0); // delete old mappings
   }
   p->sz = sz;
   return 0;
@@ -539,12 +540,13 @@ scheduler(void)
 
         swtch(&c->context, &p->context);
 
+        // switch back to use the kernel page table
+        kvminithart();
+
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
 
-        // switch back to use the kernel page table
-        kvminithart();
 
         found = 1;
       }
