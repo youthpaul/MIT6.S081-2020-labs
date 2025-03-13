@@ -106,4 +106,6 @@ struct proc {
   uint64 alarmInterval;            // alarm interval time
   void (*alarmHandler)();          // alarm handler function
   uint64 slicePassed;         // how many slices have passed since last alarm
+  int inAlarm;                // wether this proc is in alarm or not
+  struct trapframe* alarmframe;   // save the trapframe before alarm
 };

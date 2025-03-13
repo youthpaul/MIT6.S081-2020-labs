@@ -29,6 +29,46 @@ trapinithart(void)
   w_stvec((uint64)kernelvec);
 }
 
+// copy the contents from f1 to f0
+void copytrapframe(struct trapframe* f0, struct trapframe* f1){
+  f0->kernel_satp = f1->kernel_satp;
+  f0->kernel_sp = f1->kernel_sp;
+  f0->kernel_trap = f1->kernel_trap;
+  f0->epc = f1->epc;
+  f0->kernel_hartid = f1->kernel_hartid;
+  f0->ra = f1->ra;
+  f0->sp = f1->sp;
+  f0->gp = f1->gp;
+  f0->tp = f1->tp;
+  f0->t0 = f1->t0;
+  f0->t1 = f1->t1;
+  f0->t2 = f1->t2;
+  f0->s0 = f1->s0;
+  f0->s1 = f1->s1;
+  f0->a0 = f1->a0;
+  f0->a1 = f1->a1;
+  f0->a2 = f1->a2;
+  f0->a3 = f1->a3;
+  f0->a4 = f1->a4;
+  f0->a5 = f1->a5;
+  f0->a6 = f1->a6;
+  f0->a7 = f1->a7;
+  f0->s2 = f1->s2;
+  f0->s3 = f1->s3;
+  f0->s4 = f1->s4;
+  f0->s5 = f1->s5;
+  f0->s6 = f1->s6;
+  f0->s7 = f1->s7;
+  f0->s8 = f1->s8;
+  f0->s9 = f1->s9;
+  f0->s10 = f1->s10;
+  f0->s11 = f1->s11;
+  f0->t3 = f1->t3;
+  f0->t4 = f1->t4;
+  f0->t5 = f1->t5;
+  f0->t6 = f1->t6;
+}
+
 //
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
@@ -79,7 +119,9 @@ usertrap(void)
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2){
     p -> slicePassed += 1;
-    if(p -> alarmInterval != 0 && p -> slicePassed == p -> alarmInterval){
+    if(p -> alarmInterval != 0 && p -> slicePassed == p -> alarmInterval && p -> inAlarm == 0){
+      p -> inAlarm = 1;
+      copytrapframe(p -> alarmframe, p -> trapframe);
       p -> trapframe -> epc = (uint64)p -> alarmHandler;
       p -> slicePassed = 0;
     }
