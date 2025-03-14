@@ -46,9 +46,15 @@ sys_sbrk(void)
 
   if(argint(0, &n) < 0)
     return -1;
-  addr = myproc()->sz;
-  if(growproc(n) < 0)
+  struct proc* p = myproc();
+  addr = p -> sz;
+  if(p -> sz + n <= 0 || p -> sz + n >= MAXVA)
     return -1;
+  p -> sz += n;
+  if(n < 0)
+    uvmunmap(p -> pagetable, PGROUNDDOWN(addr), n / PGSIZE, 1);
+  // if(growproc(n) < 0)
+  //   return -1;
   return addr;
 }
 
