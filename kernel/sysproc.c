@@ -52,7 +52,7 @@ sys_sbrk(void)
     return -1;
   p -> sz += n;
   if(n < 0)
-    uvmunmap(p -> pagetable, PGROUNDDOWN(addr), n / PGSIZE, 1);
+    uvmdealloc(p -> pagetable, addr, p -> sz);
   // if(growproc(n) < 0)
   //   return -1;
   return addr;
