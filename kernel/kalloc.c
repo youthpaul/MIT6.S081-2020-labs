@@ -32,14 +32,6 @@ struct {
   struct spinlock lock;
 }pgref;
 
-// set the reference of pa number to 1
-// void setpgref(uint64 pa){
-  // int id = PA2PGID(pa);
-  // acquire(&pgref.lock);
-  // pgref.ref[id] = 1;
-  // release(&pgref.lock);
-// }
-
 // increase the reference number of pa
 void incpgref(uint64 pa){
   int id = PA2PGID(pa);
@@ -136,10 +128,8 @@ kalloc(void)
 
   if(r){
     memset((char*)r, 5, PGSIZE); // fill with junk
-    if(getpgref((uint64)r) != 0){
-      printf("\n---> %d\n", getpgref((uint64)r));
+    if(getpgref((uint64)r) != 0)
       panic("kalloc ref");
-    }
     incpgref((uint64)r);
   }
   return (void*)r;
@@ -168,10 +158,6 @@ int cowalloc(uint64 va){
     kfree((void*)npa);
     return -1;
   }
-
-  // if the ref only leave one, then it's not COW page
-  // if(getpgref(pa) == 1) *pte = (*pte & ~PTE_COW) | PTE_W;
-  // don't need, the last page will be free, and copy its content to a new page
 
   return 0;
 }
