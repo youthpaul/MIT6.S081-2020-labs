@@ -27,7 +27,7 @@
 
 struct {
   struct spinlock lock[NBUCKET];
-  struct buf buf[NBUF * 10];
+  struct buf buf[NBUF];
 
   // Linked list of all buffers, through prev/next.
   // Sorted by how recently the buffer was used.
@@ -51,7 +51,7 @@ binit(void)
     bcache.head[i].next = &bcache.head[i];
   }
 
-  for(b = bcache.buf; b < bcache.buf+NBUF*10; b++){
+  for(b = bcache.buf; b < bcache.buf+NBUF; b++){
     int i = hash(b - bcache.buf); // divide buffer equally into buckets
     b->next = bcache.head[i].next;
     b->prev = &bcache.head[i];
@@ -95,6 +95,42 @@ bget(uint dev, uint blockno)
       return b;
     }
   }
+
+  // this bucket have not free buffer, steal one from other bucket
+  // because we have to hold two locks here, we make sure to hold the smaller one first
+  for(int j = 0; j < NBUCKET; ++j){
+    if(j == id) continue;
+    if(j < id){
+      release(&bcache.lock[id]);
+      acquire(&bcache.lock[j]);
+      acquire(&bcache.lock[id]);
+    }
+    else{
+      acquire(&bcache.lock[j]);
+    }
+    for(b = bcache.head[j].prev; b != &bcache.head[j]; b = b->prev){
+      if(b->refcnt == 0) {
+        b->dev = dev;
+        b->blockno = blockno;
+        b->valid = 0;
+        b->refcnt = 1;
+        // extract the buffer block from 'j' to 'id
+        b->next->prev = b->prev;
+        b->prev->next = b->next;
+        b->next = bcache.head[id].next;
+        b->prev = &bcache.head[id];
+        bcache.head[id].next->prev = b;
+        bcache.head[id].next = b;
+
+        release(&bcache.lock[j]);
+        release(&bcache.lock[id]);
+        acquiresleep(&b->lock);
+        return b;
+      }
+    }
+    release(&bcache.lock[j]);
+  }
+
   panic("bget: no buffers");
 }
 
