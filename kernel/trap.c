@@ -91,7 +91,7 @@ usertrap(void)
           memset((void*)pa, 0, PGSIZE);
 
           struct inode* ip = vma -> file -> ip;
-          int off = vma -> file -> off;
+          int off = vma -> offset;
           int perm = PTE_U;
           if(vma->prot & PROT_READ)
             perm |= PTE_R;
