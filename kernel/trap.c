@@ -5,6 +5,10 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
+#include "fcntl.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -67,7 +71,52 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else {
+  } 
+  else if(r_scause() == 13 || r_scause() == 15){ // mmap page fault
+    uint64 va = r_stval();
+    if(va >= MAXVA || va >= p -> sz) p -> killed = 1;
+    else{
+      struct vma* vma = 0;
+      int i = 0;
+      /* find the correspond vma */
+      for(i = 0; i < VMASIZE; ++i)
+        if(p->vma[i].valid && p->vma[i].addr <= va && va < p->vma[i].addr + p->vma[i].length){
+          vma = &p->vma[i];
+          va = PGROUNDDOWN(va);
+          uint64 pa = (uint64)kalloc(); // allock a physical page
+          if(pa == 0){
+            p -> killed = 1;
+            break;
+          }
+
+          struct inode* ip = vma -> file -> ip;
+          int off = vma -> file -> off;
+          int perm = PTE_U;
+          if(vma->prot & PROT_READ)
+            perm |= PTE_R;
+          if(vma->prot & PROT_WRITE)
+            perm |= PTE_W;
+          if(vma->prot & PROT_EXEC)
+            perm |= PTE_X;
+
+          ilock(ip);
+          // the bytes be read may be smaller than PGSIZE, it is divided into BSIZEs
+          if(readi(ip, 0, pa, off + va - vma->addr, PGSIZE) < 0){
+            p -> killed = 1;
+            break;
+          }
+          iunlock(ip);
+          if(mappages(p->pagetable, va, PGSIZE, pa, perm) != 0){
+            kfree((void*)pa);
+            p -> killed = 1;
+          }
+          break;
+        }
+
+      if(i == VMASIZE) p -> killed = 1;
+    }
+  }
+  else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;
