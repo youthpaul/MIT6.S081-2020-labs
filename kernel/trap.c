@@ -88,6 +88,7 @@ usertrap(void)
             p -> killed = 1;
             break;
           }
+          memset((void*)pa, 0, PGSIZE);
 
           struct inode* ip = vma -> file -> ip;
           int off = vma -> file -> off;

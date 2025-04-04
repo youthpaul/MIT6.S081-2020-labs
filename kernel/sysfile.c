@@ -516,7 +516,7 @@ uint64 sys_mmap(){
         file
       };
       filedup(file); // increase ref
-      p -> sz += length;
+      p -> sz = PGROUNDUP(p->sz + length);
       return p -> vma[i].addr;
     }
 
@@ -524,6 +524,26 @@ uint64 sys_mmap(){
 }
 
 uint64 sys_munmap(){
+  uint64 addr;
+  int length;
+  if(argaddr(0, &addr) < 0 || argint(1, &length) < 0)
+    return -1;
+  addr = PGROUNDDOWN(addr);
+  length = PGROUNDUP(length);
+  struct proc* p = myproc();
+  for(int i = 0; i < VMASIZE; ++i)
+    if(p->vma[i].valid && p->vma[i].addr == addr){
+      if(p->vma[i].flags & MAP_SHARED) // update the mapped-file
+        filewrite(p->vma[i].file, addr, length);
+      uvmunmap(p->pagetable, addr, length / PGSIZE, 1);
+      p->vma[i].addr += length;
+      p->vma[i].length -= length;
+      if(!p->vma[i].length){ // all content have been free, close the file
+        fileclose(p->vma[i].file);
+        p->vma[i].valid = 0;
+      }
+      return 0;
+    }
 
   return -1;
 }
