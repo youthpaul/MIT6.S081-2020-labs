@@ -124,12 +124,22 @@ e1000_transmit(struct mbuf *m)
 static void
 e1000_recv(void)
 {
-  //
-  // Your code here.
-  //
   // Check for packets that have arrived from the e1000
   // Create and deliver an mbuf for each packet (using net_rx()).
   //
+
+  while(1){
+    int idx = (regs[E1000_RDT] + 1) % RX_RING_SIZE; // next packet idx wait to receive
+    if((rx_ring[idx].status & E1000_RXD_STAT_DD) == 0) // have no packet to fetch
+      return;
+    rx_mbufs[idx] -> len = rx_ring[idx].length; // update length
+    net_rx(rx_mbufs[idx]); // send the packet to upper layer
+    /* clear this position and put an empty packet */
+    rx_mbufs[idx] = mbufalloc(0);
+    rx_ring[idx].status = 0;
+    rx_ring[idx].addr = (uint64)rx_mbufs[idx] -> head;
+    regs[E1000_RDT] = idx;
+  }
 }
 
 void
