@@ -95,13 +95,28 @@ e1000_init(uint32 *xregs)
 int
 e1000_transmit(struct mbuf *m)
 {
-  //
-  // Your code here.
-  //
   // the mbuf contains an ethernet frame; program it into
   // the TX descriptor ring so that the e1000 sends it. Stash
   // a pointer so that it can be freed after sending.
   //
+
+  acquire(&e1000_lock);
+  int idx = regs[E1000_TDT]; // the expect idx of next packet
+  if((tx_ring[idx].status & E1000_TXD_STAT_DD) == 0){
+    release(&e1000_lock); // last transmit haven't finish
+    return -1;
+  }
+  /* free the last packet memory */
+  if(tx_mbufs[idx])
+    mbuffree(tx_mbufs[idx]);
+  
+  /* put new packet to mbuffer */
+  tx_mbufs[idx] = m;
+  tx_ring[idx].length = m -> len;
+  tx_ring[idx].addr = (uint64)m -> head;
+  tx_ring[idx].cmd = E1000_TXD_CMD_RS | E1000_TXD_CMD_EOP;
+  regs[E1000_TDT] = (idx + 1) % TX_RING_SIZE;
+  release(&e1000_lock);
   
   return 0;
 }
